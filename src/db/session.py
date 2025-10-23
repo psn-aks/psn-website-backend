@@ -14,6 +14,10 @@ from src.core.config import Config
 def ensure_database_exists():
     url = urlparse(Config.DATABASE_URL.replace("+asyncpg", ""))
 
+    if "aivencloud.com" in url.hostname:
+        print("Aiven database detected — skipping creation check.")
+        return
+
     dbname = url.path.lstrip("/")
     user = url.username
     password = url.password

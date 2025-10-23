@@ -1,12 +1,14 @@
+import os
 import asyncio
 from logging.config import fileConfig
-from sqlalchemy import engine_from_config
 from sqlalchemy import pool
 from alembic import context
 
 from sqlmodel import SQLModel
-from sqlalchemy.ext.asyncio import async_engine_from_config
-from sqlalchemy.engine import Connection
+# from sqlalchemy.ext.asyncio import async_engine_from_config
+from sqlalchemy.ext.asyncio import create_async_engine
+# from sqlalchemy.engine import Connection
+import ssl
 
 from src.core.config import Config
 from src.db import *
@@ -35,6 +37,15 @@ target_metadata = SQLModel.metadata
 # my_important_option = config.get_main_option("my_important_option")
 # ... etc.
 
+ssl_ctx = ssl.create_default_context(cafile="certs/ca.pem")
+
+connect_args = {}
+
+# only use ca.pem locally
+if os.path.exists("certs/ca.pem"):
+    ssl_ctx = ssl.create_default_context(cafile="certs/ca.pem")
+    connect_args["ssl"] = ssl_ctx
+
 
 def run_migrations_offline() -> None:
     """Run migrations in 'offline' mode.
@@ -60,7 +71,7 @@ def run_migrations_offline() -> None:
         context.run_migrations()
 
 
-def do_run_migrations(connection: Connection):
+def do_run_migrations(connection):
     context.configure(connection=connection, target_metadata=target_metadata)
 
     with context.begin_transaction():
@@ -74,10 +85,10 @@ async def run_migrations_online() -> None:
     and associate a connection with the context.
 
     """
-    connectable = async_engine_from_config(
-        config.get_section(config.config_ini_section, {}),
-        prefix="sqlalchemy.",
+    connectable = create_async_engine(
+        database_url,
         poolclass=pool.NullPool,
+        connect_args={"ssl": ssl_ctx},
     )
 
     async with connectable.connect() as connection:
