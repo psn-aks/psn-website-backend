@@ -16,5 +16,6 @@ def set_up_cors(app: FastAPI):
 def set_up_trusted_host(app: FastAPI):
     app.add_middleware(
         TrustedHostMiddleware,
-        allowed_hosts=["localhost", "127.0.0.1", "0.0.0.0", "testserver"]
+        allowed_hosts=["psn-website-backend.onrender.com",
+                       "*.onrender.com", "localhost"]
     )
