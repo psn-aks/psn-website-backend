@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Request, BackgroundTasks, status, Form
 
-from src.mail import create_message, mail
+from src.mail import send_resend_email_bg
 from fastapi.responses import JSONResponse
 from src.core.config import Config
 
@@ -15,9 +15,8 @@ async def send_mail(request: Request,
                     address: str = Form(...),
                     message: str = Form(...),
                     ):
-    print(name, address, message)
+
     recipient_mail = Config.MAIL_USERNAME
-    html_content = message
     html_content = f"""
     <h3>New Contact Form Message</h3>
     <p><b>From:</b> {name} &lt;{address}&gt;</p>
@@ -25,10 +24,8 @@ async def send_mail(request: Request,
     <p>{message}</p>
     """
 
-    subject = f"New Message from {address}: {name}"
-    message = create_message(subject, recipient_mail, html_content)
-
-    bg_tasks.add_task(mail.send_message, message)
+    subject = f"New Message from {name} ({address})"
+    send_resend_email_bg(bg_tasks, recipient_mail, subject, html_content)
 
     return JSONResponse(
         content={"message": "Email sent successfully"},
