@@ -28,6 +28,10 @@ class Settings(BaseSettings):
     MAIL_FROM_RESEND: str
     RESEND_API_URL: str = "https://api.resend.com/emails"
 
+    CLOUDINARY_CLOUD_NAME: str
+    CLOUDINARY_API_KEY: str
+    CLOUDINARY_API_SECRET: str
+
     model_config = SettingsConfigDict(
         env_file=".env",
         extra="ignore"

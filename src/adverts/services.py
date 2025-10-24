@@ -53,7 +53,7 @@ class AdvertsService:
             end_date=end_date,
             active=active,
             priority=priority,
-            image_url=await upload_image(image)
+            image_url=await upload_image(image, subfolder="adverts")
         )
 
         session.add(advert)

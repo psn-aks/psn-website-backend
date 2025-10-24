@@ -1,6 +1,4 @@
-import os
 from fastapi import FastAPI
-from fastapi.staticfiles import StaticFiles
 
 from src.middlewares import register_middleware
 from src.middlewares.rate_limit import apply_rate_limit_to_router
@@ -22,10 +20,6 @@ app = FastAPI(
 
 
 register_middleware(app)
-
-UPLOAD_DIR = "uploads"
-os.makedirs(UPLOAD_DIR, exist_ok=True)
-app.mount(f"/{UPLOAD_DIR}", StaticFiles(directory=UPLOAD_DIR), name=UPLOAD_DIR)
 
 
 @app.get(f"{base_prefix}/")

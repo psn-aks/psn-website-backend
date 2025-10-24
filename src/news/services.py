@@ -78,7 +78,7 @@ class NewsService:
             tags=tags,
             slug=slug,
             group=group,
-            image_url=await upload_image(image)
+            image_url=await upload_image(image, subfolder="news")
         )
 
         session.add(news)
@@ -179,7 +179,7 @@ class NewsService:
         if image:
             if news.image and os.path.exists(news.image):
                 os.remove(news.image)
-            image_url = await upload_image(image)
+            image_url = await upload_image(image, subfolder="news")
             news.image = image_url
 
         news.updated_at = datetime.now(timezone.utc)

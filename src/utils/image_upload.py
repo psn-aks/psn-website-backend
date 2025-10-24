@@ -1,20 +1,24 @@
-import os
 from datetime import datetime, timezone
-
-from src.utils.slug import slugify
-
-UPLOAD_DIR = "uploads/news"
+import cloudinary.uploader
+from src.core.cloudinary_config import cloudinary
 
 
-async def upload_image(image):
-    if image:
-        os.makedirs(UPLOAD_DIR, exist_ok=True)
-        slug_datetime = slugify(str(datetime.now(timezone.utc)))
-        filename = f"{slug_datetime}_{image.filename}"
-        file_path = os.path.join(UPLOAD_DIR, filename)
+async def upload_image(image, subfolder: str = "news"):
+    if not image:
+        return None
 
-        with open(file_path, "wb") as buffer:
-            buffer.write(await image.read())
-
-        return file_path
-    return None
+    try:
+        # Upload directly to Cloudinary
+        upload_result = cloudinary.uploader.upload(
+            image.file,
+            folder=f"psn_website/{subfolder}",
+            public_id=(
+                f"news_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}"
+                ),
+            overwrite=True,
+            resource_type="image"
+        )
+        return upload_result["secure_url"]
+    except Exception as e:
+        print("Cloudinary upload failed:", e)
+        return None
