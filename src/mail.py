@@ -5,14 +5,17 @@ from src.core.config import Config
 
 RESEND_API_URL = Config.RESEND_API_URL
 RESEND_API_KEY = Config.RESEND_API_KEY
-MAIL_FROM = Config.MAIL_FROM
+MAIL_FROM_RESEND = Config.MAIL_FROM_RESEND
 
 
 async def send_resend_email(to: str, subject: str, html: str):
     """Send email using Resend API."""
-    headers = {"Authorization": f"Bearer {RESEND_API_KEY}"}
+    headers = {
+        "Authorization": f"Bearer {RESEND_API_KEY}",
+        "Content-Type": "application/json",
+    }
     payload = {
-        "from": f"Your Website <{MAIL_FROM}>",
+        "from": MAIL_FROM_RESEND,
         "to": [to],
         "subject": subject,
         "html": html,

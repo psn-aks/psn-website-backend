@@ -25,7 +25,8 @@ class Settings(BaseSettings):
     VALIDATE_CERTS: bool = True
 
     RESEND_API_KEY: str
-    RESEND_API_URL = "https://api.resend.com/emails"
+    MAIL_FROM_RESEND: str
+    RESEND_API_URL: str = "https://api.resend.com/emails"
 
     model_config = SettingsConfigDict(
         env_file=".env",
