@@ -1,7 +1,7 @@
-import uuid
 from datetime import datetime
-from pydantic import BaseModel
 from typing import Optional
+from pydantic import BaseModel, Field, ConfigDict
+from bson import ObjectId
 
 
 class NewsBase(BaseModel):
@@ -28,13 +28,30 @@ class NewsUpdate(BaseModel):
 
 
 class NewsRead(NewsBase):
-    uid: uuid.UUID
-    created_at: datetime
+    id: str = Field(alias="_id", json_schema_extra={
+        "example": "652c1e6fcf9b7f001f3f5a2b"
+    })
     slug: str
-    updated_at: Optional[datetime] = None
+    created_at: datetime
+    updated_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(
+        populate_by_name=True,
+        arbitrary_types_allowed=True,
+        json_encoders={ObjectId: str}
+    )
+
+    @classmethod
+    async def from_mongo(cls, news):
+        if isinstance(news, dict):
+            data = news.copy()
+        else:
+            data = news.model_dump(by_alias=True)
+
+        if "_id" in data:
+            data['_id'] = str(data['_id'])
+
+        return cls(**data)
 
 
 class NewsDetailResponse(BaseModel):

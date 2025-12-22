@@ -1,51 +1,89 @@
 import uuid
 from datetime import datetime, timezone
-from sqlmodel.ext.asyncio.session import AsyncSession
-from sqlmodel import select
+from typing import List
+
 from fastapi import HTTPException, status
 
 from src.adverts.models import Advert
-from src.utils.image_upload import upload_image
-# from src.adverts.schemas import
+from src.utils.cloudinary import upload_to_cloudinary
 
 
 class AdvertsService:
-    async def get_all_adverts(self, session: AsyncSession, offset: int,
-                              limit: int, only_active: bool):
 
-        stmt = select(Advert).order_by(Advert.priority.desc(),
-                                       Advert.created_at.desc()).offset(
-                                           offset
-        ).limit(limit)
+    async def get_all_adverts(
+        self,
+        offset: int = 0,
+        limit: int = 10,
+        only_active: bool = False
+    ) -> List[Advert]:
+
+        query = Advert.find()
 
         if only_active:
             now = datetime.now(timezone.utc)
-            # active flag true, start_date <= now (or null),
-            # end_date >= now (or null)
-            stmt = stmt.where(
-                Advert.active.is_(True),
-                (Advert.start_date.is_(None)) | (Advert.start_date <= now),
-                (Advert.end_date.is_(None)) | (Advert.end_date >= now),
+
+            query = Advert.find(
+                {
+                    "active": True,
+                    "$and": [
+                        {
+                            "$or": [
+                                {"start_date": None},
+                                {"start_date": {"$lte": now}},
+                            ]
+                        },
+                        {
+                            "$or": [
+                                {"end_date": None},
+                                {"end_date": {"$gte": now}},
+                            ]
+                        },
+                    ],
+                }
             )
 
-        result = await session.exec(stmt)
-        return result.all()
+        return (
+            await query
+            .sort([("priority", -1), ("created_at", -1)])
+            .skip(offset)
+            .limit(limit)
+            .to_list()
+        )
 
-    async def get_one_advert(self, session: AsyncSession,
-                             advert_uid: uuid.UUID):
-        advert = await session.get(Advert, advert_uid)
+    async def get_one_advert(
+        self,
+        advert_uid: uuid.UUID
+    ) -> Advert:
+
+        advert = await Advert.find_one(Advert.uid == advert_uid)
         if not advert:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Advert not found")
+                detail="Advert not found"
+            )
         return advert
 
-    async def create_one_advert(self, session: AsyncSession,
-                                title, content,
-                                link, start_date, end_date,
-                                active, priority, image):
+    async def create_one_advert(
+        self,
+        title: str,
+        content: str | None,
+        link: str | None,
+        start_date: datetime | None,
+        end_date: datetime | None,
+        active: bool = True,
+        priority: int = 0,
+        image=None,
+    ) -> Advert:
+
+        image_url = None
+        slug = "adv"  # fix this
+        if image:
+            image_url = await upload_to_cloudinary(
+                image, slug, subfolder="adverts"
+            )
 
         advert = Advert(
+            uid=uuid.uuid4(),
             title=title,
             content=content,
             link=link,
@@ -53,13 +91,37 @@ class AdvertsService:
             end_date=end_date,
             active=active,
             priority=priority,
-            image_url=await upload_image(image, subfolder="adverts")
+            image_url=image_url,
         )
 
-        session.add(advert)
-        await session.commit()
-        await session.refresh(advert)
+        await advert.insert()
         return advert
+
+    async def update_one_advert(self, advert_uid, data):
+        advert = await Advert.find_one(Advert.uid == advert_uid)
+        if not advert:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Advert not found",
+            )
+
+        update_data = data.model_dump(exclude_unset=True)
+        for key, value in update_data.items():
+            setattr(advert, key, value)
+
+        advert.updated_at = datetime.now(timezone.utc)
+        await advert.save()
+        return advert
+
+    async def delete_one_advert(self, advert_uid):
+        advert = await Advert.find_one(Advert.uid == advert_uid)
+        if not advert:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Advert not found",
+            )
+
+        await advert.delete()
 
 
 adverts_svc = AdvertsService()

@@ -29,9 +29,9 @@ class BearerTokenClass:
                      expires_delta: timedelta = None,
                      token_type: str = "access"):
         payload = {}
-        payload['sub'] = str(payload_data['user_uid'])
+        payload['sub'] = str(payload_data['user_id'])
         payload['email'] = payload_data['email']
-        payload['role'] = payload_data['role']
+        payload['is_admin'] = payload_data['is_admin']
         payload['exp'] = datetime.now(timezone.utc) + (
             expires_delta if expires_delta is not None
             else DEFAULT_EXPIRY_ACCESS
@@ -55,25 +55,28 @@ class BearerTokenClass:
         return self.create_token(data, DEFAULT_EXPIRY_REFRESH,
                                  token_type="refresh")
 
-    def decode_access_token(self, token: str):
+    def decode_token(self, token: str, token_type: str | None = None):
         try:
             payload = jwt.decode(
                 token,
                 Config.JWT_SECRET,
                 algorithms=[Config.JWT_ALGORITHM]
             )
-            return (
-                payload if payload['exp'] >= datetime.now(
-                ).timestamp() else None
-            )
+            if token_type and payload.get("type") != token_type:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Invalid token type"
+                )
+
+            return payload
 
         except ExpiredSignatureError:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Token has Expired"
-                )
+            )
         except JWTError:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Invalid token"
-                )
+            )

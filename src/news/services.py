@@ -1,75 +1,80 @@
-import os
-from typing import Optional
-import uuid
+from typing import Optional, List, Tuple
 from datetime import datetime, timezone
+from fastapi import HTTPException, UploadFile, status
 from fastapi.responses import JSONResponse
-from sqlmodel.ext.asyncio.session import AsyncSession
-from sqlmodel import select, or_
-from sqlalchemy import func
-from fastapi import File, HTTPException, UploadFile, status
 
 from src.news.models import News
-from src.news.schemas import NewsUpdate
-from src.utils.image_upload import upload_image
-from src.utils.slug import slugify
-
-# from src.core.security import BearerTokenClass, PWDHashing
-# from src.db.redis import add_jti_to_blocklist
-
-# pwd_hashing = PWDHashing()
-# jwt_bearer_token = BearerTokenClass()
+from src.news.schemas import NewsRead
+from src.utils.cloudinary import upload_to_cloudinary
+from src.utils.slugify import generate_slug_from_title
 
 
 class NewsService:
 
-    async def get_news_by_uid(self, session: AsyncSession,
-                              uid: uuid.UUID):
-        news = await session.get(News, uid)
+    async def get_news(self, slug: str) -> News:
+        news = await News.find_one(News.slug == slug)
         if not news:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="News not found")
+                detail="News not found"
+            )
         return news
 
-    async def get_news_by_slug(self, session: AsyncSession,
-                               slug: str):
-        query = select(News).where(News.slug == slug)
-        result = await session.exec(query)
-        news = result.first()
-        if not news:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="News not found")
-        return news
+    async def get_news_by_slug(self, slug: str) -> NewsRead:
+        news = await self.get_news(slug)
+        return await NewsRead.from_mongo(news)
 
-    async def get_all_news(self, session: AsyncSession,
-                           group: Optional[str] = None):
+    async def get_all_news(
+        self,
+        page: int = 1,
+        limit: int = 5,
+        q: Optional[str] = None,
+        group: Optional[str] = None,
+    ) -> Tuple[list[NewsRead], int]:
 
-        query = select(News).order_by(News.created_at.desc())
+        skip = (page - 1) * limit
+
+        filters = {}
 
         if group:
             group_list = [g.strip().lower()
                           for g in group.split(",") if g.strip()]
             if group_list:
-                filters = [News.group.ilike(f"%{g}%") for g in group_list]
-                query = query.where(or_(*filters))
+                filters["group"] = {"$in": group_list}
 
-        result = await session.exec(query)
-        news_list = result.all()
-        return news_list
+        if q:
+            filters["$or"] = [
+                {"title": {"$regex": q, "$options": "i"}},
+                {"content": {"$regex": q, "$options": "i"}},
+                {"author": {"$regex": q, "$options": "i"}},
+            ]
 
-    async def add_a_news(self, session: AsyncSession,
-                         title: str,
-                         author: str,
-                         content: str,
-                         tags: list[str] = [],
-                         group: str = None,
-                         image: UploadFile = File(None)
-                         ):
+        query = News.find(filters).sort(-News.created_at)
 
-        slug_title = slugify(title)
-        slug_datetime = slugify(str(datetime.now(timezone.utc)))
-        slug = f"{slug_title}-{slug_datetime}"
+        total = await query.count()
+
+        results = await query.skip(skip).limit(limit).to_list()
+
+        items = [await NewsRead.from_mongo(n) for n in results]
+
+        return items, total
+
+    async def add_a_news(
+        self,
+        title: str,
+        author: str,
+        content: str,
+        tags: List[str] | None = None,
+        group: Optional[str] = None,
+        image: UploadFile | None = None
+    ) -> News:
+
+        tags = tags or []
+
+        slug = await generate_slug_from_title(title, News)
+
+        image_url = await upload_to_cloudinary(image, slug,
+                                               subfolder="news")
 
         news = News(
             title=title,
@@ -78,95 +83,83 @@ class NewsService:
             tags=tags,
             slug=slug,
             group=group,
-            image_url=await upload_image(image, subfolder="news")
+            image_url=image_url,
         )
 
-        session.add(news)
-        await session.commit()
-        await session.refresh(news)
-        return news
+        await news.insert()
+        return await NewsRead.from_mongo(news)
 
-    async def get_a_news(self, session: AsyncSession,
-                         uid: uuid.UUID):
-        news = await self.get_news_by_uid(session, uid)
-        return news
+    # async def update_a_news(
+    #     self,
+    #     uid: uuid.UUID,
+    #     data: NewsUpdate
+    # ) -> News:
 
-    async def update_a_news(self, session: AsyncSession,
-                            uid: uuid.UUID,
-                            data: NewsUpdate):
-        news = await self.get_news_by_uid(session, uid)
+    #     news = await self.get_news_by_uid(uid)
 
-        update_data = data.model_dump(exclude_unset=True)
-        for key, value in update_data.items():
-            setattr(news, key, value)
+    #     update_data = data.model_dump(exclude_unset=True)
+    #     for key, value in update_data.items():
+    #         setattr(news, key, value)
 
-        session.add(news)
-        await session.commit()
-        await session.refresh(news)
-        return news
+    #     news.updated_at = datetime.now(timezone.utc)
+    #     await news.save()
+    #     return news
 
-    async def delete_a_news(self, session: AsyncSession, uid: uuid.UUID):
+    # async def delete_a_news(self, uid: uuid.UUID):
 
-        news = await self.get_news_by_uid(session, uid)
+    #     news = await self.get_news_by_uid(uid)
+    #     await news.delete()
 
-        await session.delete(news)
-        await session.commit()
-        return JSONResponse(
-            content="News deleted successfully",
-            status_code=status.HTTP_200_OK
-        )
+    #     return JSONResponse(
+    #         content="News deleted successfully",
+    #         status_code=status.HTTP_200_OK
+    #     )
 
     async def get_related_news(
         self,
-        session: AsyncSession,
-        tags: list[str],
+        tags: List[str],
         current_slug: str,
         limit: int = 3
-    ):
-        """Fetch related news articles sharing similar tags."""
+    ) -> List[News]:
+
         if not tags:
             return []
 
-        stmt = (
-            select(News)
-            .where(
-                func.array_length(News.tags, 1).isnot(None),
-                News.slug != current_slug
-            )
-            .order_by(News.created_at.desc())
-            .limit(limit)
-        )
+        related_news = await News.find(
+            {
+                "tags": {"$in": tags},
+                "slug": {"$ne": current_slug},
+            }
+        ).sort(-News.created_at).limit(limit).to_list()
 
-        result = await session.exec(stmt)
-        related_news = result.all()
-        return related_news
+        return [await NewsRead.from_mongo(n) for n in related_news]
 
-    async def get_a_news_by_slug(self,
-                                 session: AsyncSession,
-                                 slug: str):
-        news = await self.get_news_by_slug(session, slug)
-        related = await self.get_related_news(session, news.tags,
-                                              news.slug)
+    async def get_a_news_by_slug(self, slug: str):
+        news = await self.get_news_by_slug(slug)
+        related = await self.get_related_news(news.tags, news.slug)
+
         return {
             "article": news,
             "related": related,
         }
 
-    async def update_a_news_by_slug(self, session: AsyncSession,
-                                    slug: str,
-                                    title: str | None = None,
-                                    author: str | None = None,
-                                    content: str | None = None,
-                                    tags: list[str] | None = None,
-                                    group: list[str] | None = None,
-                                    image: UploadFile | None = None
-                                    ):
-        news = await self.get_news_by_slug(session, slug)
+    async def update_a_news_by_slug(
+        self,
+        slug: str,
+        title: str | None = None,
+        author: str | None = None,
+        content: str | None = None,
+        tags: List[str] | None = None,
+        group: Optional[str] = None,
+        image: UploadFile | None = None
+    ) -> News:
+
+        news = await self.get_news(slug)
 
         if title:
             news.title = title
-            date = datetime.now(timezone.utc)
-            news.slug = f"{slugify(title)}-{slugify(str(date))}"
+            news.slug = await generate_slug_from_title(title, News)
+
         if author:
             news.author = author
         if content:
@@ -177,24 +170,19 @@ class NewsService:
             news.group = group
 
         if image:
-            if news.image and os.path.exists(news.image):
-                os.remove(news.image)
-            image_url = await upload_image(image, subfolder="news")
-            news.image = image_url
+            news.image_url = await upload_to_cloudinary(
+                image, slug, subfolder="news")
 
         news.updated_at = datetime.now(timezone.utc)
+        await news.save()
 
-        session.add(news)
-        await session.commit()
-        await session.refresh(news)
-        return news
+        return await NewsRead.from_mongo(news)
 
-    async def delete_a_news_by_slug(self, session: AsyncSession, slug: str):
+    async def delete_a_news_by_slug(self, slug: str):
 
-        news = await self.get_news_by_slug(session, slug)
+        news = await self.get_news(slug)
+        await news.delete()
 
-        await session.delete(news)
-        await session.commit()
         return JSONResponse(
             content="News deleted successfully",
             status_code=status.HTTP_200_OK

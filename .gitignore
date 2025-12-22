@@ -12,3 +12,4 @@ wheels/
 certs/
 
 tt.py
+venv/

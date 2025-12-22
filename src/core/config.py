@@ -2,12 +2,14 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    DATABASE_URL: str
+    MONGO_URI: str
+    DB_NAME: str = "psn_aks"
     JWT_SECRET: str
     JWT_ALGORITHM: str
+
     REDIS_URL: str = "redis://localhost:6379/0"
     ENVIRONMENT: str = "dev"
-    ACCESS_TOKEN_EXPIRY: int = 3600
+    ACCESS_TOKEN_EXPIRY: int = 1800
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
     ADMIN_PASSWORD: str

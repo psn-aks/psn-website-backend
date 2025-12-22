@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Request, BackgroundTasks, status, Form
 
-from src.mail import send_resend_email_bg
+from src.utils.mail import send_resend_email_bg
 from fastapi.responses import JSONResponse
 from src.core.config import Config
 

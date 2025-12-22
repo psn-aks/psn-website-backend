@@ -1,7 +1,7 @@
 from datetime import datetime, date
 from typing import List, Optional
-import uuid
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
+from bson import ObjectId
 
 
 class PharmacistBaseSchema(BaseModel):
@@ -17,6 +17,7 @@ class PharmacistBaseSchema(BaseModel):
     technical_group: str
     interest_groups: List[str] = Field(default_factory=list)
     gender: str
+    phone_number: str
 
 
 # class PharmacistReadSchema(BaseModel):
@@ -54,12 +55,31 @@ class PharmacistUpdateSchema(BaseModel):
     technical_group: Optional[str] = None
     interest_groups: Optional[List[str]] = None
     gender: Optional[str] = None
+    phone_number: Optional[str] = None
 
 
 class PharmacistReadSchema(PharmacistBaseSchema):
-    uid: uuid.UUID
+    id: str = Field(alias="_id", json_schema_extra={
+        "example": "652c1e6fcf9b7f001f3f5a2b"
+    })
+
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(
+        populate_by_name=True,
+        arbitrary_types_allowed=True,
+        json_encoders={ObjectId: str}
+    )
+
+    @classmethod
+    async def from_mongo(cls, pharmacist):
+        if isinstance(pharmacist, dict):
+            data = pharmacist.copy()
+        else:
+            data = pharmacist.model_dump(by_alias=True)
+
+        if "_id" in data:
+            data['_id'] = str(data['_id'])
+
+        return cls(**data)
