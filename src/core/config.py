@@ -12,9 +12,6 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRY: int = 1800
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
-    ADMIN_PASSWORD: str
-    ADMIN_EMAIL: str
-
     MAIL_USERNAME: str
     MAIL_PASSWORD: str
     MAIL_FROM: str
