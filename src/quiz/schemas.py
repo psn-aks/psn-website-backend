@@ -14,6 +14,11 @@ class QuizTopicCreate(QuizTopicBase):
     pass
 
 
+class QuizTopicUpdate(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+
+
 class QuizTopicRead(QuizTopicBase):
     id: str = Field(alias="_id", json_schema_extra={
         "example": "652c1e6fcf9b7f001f3f5a2b"

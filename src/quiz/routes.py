@@ -1,7 +1,9 @@
 from typing import List
 from fastapi import APIRouter, HTTPException
 from src.quiz.models import QuizTopic, QuizQuestion
-from src.quiz.schemas import QuizQuestionUpdate, QuizTopicCreate, QuizTopicRead
+from src.quiz.schemas import (
+    QuizQuestionUpdate, QuizTopicCreate, QuizTopicRead, QuizTopicUpdate
+)
 from src.quiz.services import quiz_svc
 from bson import ObjectId
 
@@ -27,7 +29,7 @@ async def get_topic_id(topic_id: str):
 
 
 @quiz_router.put("/topics/{topic_id}", response_model=QuizTopic)
-async def update_topic(topic_id: str, topic: QuizTopic):
+async def update_topic(topic_id: str, topic: QuizTopicUpdate):
     db_topic = await QuizTopic.get(topic_id)
     if not db_topic:
         raise HTTPException(404, "Topic not found")
@@ -55,8 +57,12 @@ async def get_topic(slug: str):
 @quiz_router.get("/topics/{topic_id}/questions",
                  response_model=List[QuizQuestion])
 async def list_questions(topic_id: str):
-    print(topic_id)
-    return await QuizQuestion.find({"topic_id": ObjectId(topic_id)}).to_list()
+    return await (
+        QuizQuestion
+        .find({"topic_id": ObjectId(topic_id)})
+        .sort("-created_at")
+        .to_list()
+    )
 
 
 @quiz_router.get("/topics/slug/{slug}/questions",
