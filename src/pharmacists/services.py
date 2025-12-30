@@ -1,16 +1,18 @@
+from datetime import datetime, timezone
 from typing import Optional
 import csv
 from fastapi.responses import StreamingResponse
 from io import StringIO, BytesIO
 
 from fastapi.responses import JSONResponse
-from fastapi import HTTPException, status
+from fastapi import File, HTTPException, status
 from openpyxl import Workbook
 
 from src.pharmacists.models import Pharmacist
 from src.pharmacists.schemas import (
     PharmacistCreateSchema, PharmacistReadSchema, PharmacistUpdateSchema
 )
+from src.utils.cloudinary import upload_to_cloudinary
 
 # from src.core.security import BearerTokenClass, PWDHashing
 # from src.db.redis import add_jti_to_blocklist
@@ -81,6 +83,35 @@ class PharmacistService:
 
         return JSONResponse(
             content="Pharmacist deleted successfully",
+            status_code=status.HTTP_200_OK
+        )
+
+    async def add_profile_picture(self, license_number: str,
+                                  profile_picture: File):
+        if not profile_picture.content_type.startswith("image/"):
+            raise HTTPException(
+                status_code=400, detail="Only image files are allowed")
+
+        pharmacist = await self.get_pharmacist_by_license_number(
+            license_number)
+        name = pharmacist.full_name
+
+        image_url = await upload_to_cloudinary(profile_picture, name,
+                                               subfolder="pharmacist")
+
+        if image_url is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Failed to upload image"
+            )
+
+        await pharmacist.set({
+            "profile_picture": image_url,
+            "updated_at": datetime.now(timezone.utc),
+        })
+
+        return JSONResponse(
+            content="Profile Image uploaded successfully",
             status_code=status.HTTP_200_OK
         )
 

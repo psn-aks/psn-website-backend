@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Request, status, Query
+from fastapi import (
+    APIRouter, Request, status, Query, UploadFile, File
+)
 
 from src.pharmacists.schemas import (
     PharmacistReadSchema, PharmacistCreateSchema, PharmacistUpdateSchema
@@ -53,6 +55,16 @@ async def delete_pharmacist(request: Request,
                             license_number: str):
     pharmacist = await pharmacist_svc.delete_a_pharmacist(license_number)
     return pharmacist
+
+
+@pharmacists_router.post("/{license_number}/profile-picture")
+async def add_profile_picture(request: Request,
+                              license_number: str,
+                              profile_picture: UploadFile = File(...)):
+
+    response = await pharmacist_svc.add_profile_picture(license_number,
+                                                        profile_picture)
+    return response
 
 
 @pharmacists_router.get("/export/csv")

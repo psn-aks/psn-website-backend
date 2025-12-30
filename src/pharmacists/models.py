@@ -19,6 +19,7 @@ class Pharmacist(Document):
     gender: str
     phone_number: str
     interest_groups: list[str] = []
+    profile_picture: Optional[str] = None
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc)
     )

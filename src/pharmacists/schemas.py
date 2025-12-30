@@ -17,7 +17,8 @@ class PharmacistBaseSchema(BaseModel):
     technical_group: str
     interest_groups: List[str] = Field(default_factory=list)
     gender: str
-    phone_number: str
+    phone_number: Optional[str] = None
+    profile_picture: Optional[str] = None
 
 
 # class PharmacistReadSchema(BaseModel):
@@ -56,6 +57,7 @@ class PharmacistUpdateSchema(BaseModel):
     interest_groups: Optional[List[str]] = None
     gender: Optional[str] = None
     phone_number: Optional[str] = None
+    profile_picture: Optional[str] = None
 
 
 class PharmacistReadSchema(PharmacistBaseSchema):
