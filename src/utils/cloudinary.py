@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime, timezone
 import cloudinary.uploader
 import cloudinary
@@ -34,5 +35,5 @@ async def upload_to_cloudinary(file: UploadFile, slug, subfolder,
         return upload_result["secure_url"]
 
     except Exception as e:
-        print("Cloudinary upload failed:", e)
+        logging.warning("Cloudinary upload failed:", e)
         return None

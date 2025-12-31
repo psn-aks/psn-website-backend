@@ -2,7 +2,7 @@ import logging
 from fastapi import FastAPI, Request
 from starlette.middleware.base import BaseHTTPMiddleware
 
-logger = logging.getLogger("omnicart")
+logger = logging.getLogger("psnaks")
 logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s - %(levelname)s - %(message)s")
 

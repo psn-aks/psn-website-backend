@@ -78,3 +78,12 @@ class UserUpdateSchema(BaseModel):
     email: Optional[EmailStr] = None
     fullname: Optional[str] = None
     is_admin: Optional[bool] = None
+
+
+class PasswordResetRequestModel(BaseModel):
+    email: str
+
+
+class PasswordResetConfirmModel(BaseModel):
+    password: str
+    confirm_password: str

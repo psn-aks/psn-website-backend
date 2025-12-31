@@ -1,13 +1,19 @@
 from datetime import datetime, timezone
-from fastapi import HTTPException, status, Response
+from fastapi import HTTPException, status, Response, BackgroundTasks
 from beanie import PydanticObjectId
+from fastapi.responses import JSONResponse
 
 from src.users.schemas import (
     UserRegisterSchema, UserLoginSchema, UserReadSchema,
-    UserLoginResponse, UserUpdateSchema, UserAdminRegisterSchema
+    UserLoginResponse, UserUpdateSchema, UserAdminRegisterSchema,
+    PasswordResetRequestModel, PasswordResetConfirmModel
 )
 from src.users.models import User
 from src.core.security import PWDHashing, BearerTokenClass
+
+from src.utils.url_token import create_url_safe_token, decode_url_safe_token
+from src.core.config import Config
+from src.utils.mail import send_resend_email_bg
 
 
 pwd_hashing = PWDHashing()
@@ -86,7 +92,7 @@ class UserService:
             "fullname": user.fullname
 
         }
-        print(access_token)
+
         response.set_cookie(
             key="access_token",
             value=access_token,
@@ -126,8 +132,6 @@ class UserService:
 
     async def get_user_by_id(self, user_id: str):
         user = await User.get(PydanticObjectId(user_id))
-        print(user_id)
-        print(user)
         if not user:
             raise HTTPException(
                 detail="User not found",
@@ -207,6 +211,82 @@ class UserService:
         )
 
         return {"message": "Access token refreshed"}
+
+    async def password_reset_request(self,
+                                     email_data: PasswordResetRequestModel,
+                                     bg_tasks: BackgroundTasks):
+        email = email_data.email
+
+        token = create_url_safe_token({"email": email})
+        frontend_url = f"http://{Config.FRONTEND_DOMAIN}"
+        link = f"{frontend_url}/reset-password/{token}"
+
+        subject = "Reset Your Password"
+        html_content = f"""
+        <h1>Reset Your Password</h1>
+        <p>You have requested to reset your password.
+        If this was not done by you, kindly ignore this mail</p>
+        <p>Please click this <a href="{link}">link</a> to {subject}</p>
+        <p>This will expire in 15 minutes.</p>
+        <br/>
+        <br/>
+        <p>PSN AKS</p>
+        """
+
+        send_resend_email_bg(bg_tasks,
+                             to=email,
+                             subject=subject,
+                             html=html_content)
+
+        return JSONResponse(
+            content={
+                "message": "Please check your email for \
+    instructions to reset your password",
+            },
+            status_code=status.HTTP_200_OK,
+        )
+
+    async def reset_account_password(self, token: str,
+                                     passwords: PasswordResetConfirmModel):
+        new_password = passwords.password
+        confirm_password = passwords.confirm_password
+
+        if new_password != confirm_password:
+            raise HTTPException(
+                detail="Passwords do not match",
+                status_code=status.HTTP_400_BAD_REQUEST
+            )
+
+        token_data = decode_url_safe_token(token)
+
+        user_email = token_data.get("email")
+
+        if user_email:
+            user = await self.get_existing_user_by_email(user_email)
+
+            if not user:
+                # raise UserNotFound()
+                raise HTTPException(
+                    detail="User not found",
+                    status_code=status.HTTP_404_NOT_FOUND
+                )
+
+            passwd_hash = pwd_hashing.generate_password_hash(new_password)
+
+            await user.set({
+                "hashed_password": passwd_hash,
+                "updated_at": datetime.now(timezone.utc),
+            })
+
+            return JSONResponse(
+                content={"message": "Password reset Successfully"},
+                status_code=status.HTTP_200_OK,
+            )
+
+        return JSONResponse(
+            content={"message": "Error occured during password reset."},
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
 
 
 user_svc = UserService()

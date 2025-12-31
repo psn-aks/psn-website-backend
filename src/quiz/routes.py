@@ -68,7 +68,6 @@ async def list_questions(topic_id: str):
 @quiz_router.get("/topics/slug/{slug}/questions",
                  response_model=List[QuizQuestion])
 async def list_questions_slug(slug: str):
-    print(slug)
     return await QuizQuestion.find({"topic_slug": slug}).to_list()
 
 

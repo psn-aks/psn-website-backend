@@ -1,15 +1,18 @@
 from typing import List
 from fastapi import (
-    APIRouter, HTTPException, status, Request, Depends, Response
+    APIRouter, HTTPException, status, Request, Depends,
+    Response, BackgroundTasks
 )
 
 from src.core.dependencies import require_admin
 from src.users.schemas import (
     UserRegisterSchema, UserLoginSchema, UserReadSchema, UserLoginResponse,
-    UserUpdateSchema, UserAdminRegisterSchema
+    UserUpdateSchema, UserAdminRegisterSchema, PasswordResetRequestModel,
+    PasswordResetConfirmModel
 )
 from src.users.services import user_svc
 from src.users.models import User
+
 
 user_router = APIRouter()
 
@@ -87,3 +90,16 @@ async def refresh_access_token(request: Request, response: Response):
             detail="Refresh token missing"
         )
     return await user_svc.refresh_access_token(refresh_token, response)
+
+
+@user_router.post("/password-reset-request")
+async def password_reset_request(bg_tasks: BackgroundTasks,
+                                 email_data: PasswordResetRequestModel):
+
+    return await user_svc.password_reset_request(email_data, bg_tasks)
+
+
+@user_router.post("/password-reset-confirm/{token}")
+async def reset_account_password(token: str,
+                                 passwords: PasswordResetConfirmModel):
+    return await user_svc.reset_account_password(token, passwords)
