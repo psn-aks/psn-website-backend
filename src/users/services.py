@@ -218,8 +218,7 @@ class UserService:
         email = email_data.email
 
         token = create_url_safe_token({"email": email})
-        frontend_url = f"http://{Config.FRONTEND_DOMAIN}"
-        link = f"{frontend_url}/reset-password/{token}"
+        link = f"{Config.FRONTEND_DOMAIN}/reset-password/{token}"
 
         subject = "Reset Your Password"
         html_content = f"""
